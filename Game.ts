@@ -2,14 +2,15 @@ import {
 	Client,
 	Collection,
 	Emoji,
-	Guild,
 	GuildMember,
 	Message,
 	MessageReaction,
 	ReactionEmoji,
+	Snowflake,
 	TextChannel,
 	User
 } from "discord.js";
+import {deleteMessage} from "./Utils";
 
 /*TODO
  + Disallow duplicate votes.
@@ -23,23 +24,26 @@ export default class Game {
 	bot: Client;
 	question: string;
 	questions = ["eat cheese", "write javascript", "be a moron", "write a non-working discord bot for the game Who'd rather"];
+	otherRounds: Array<Snowflake>;
 
-	constructor(bot: Client) {
+	signUpTime = 60;
+	voteTime = 30;
+
+	constructor(bot: Client, otherRounds: Array<Snowflake>) {
 		this.bot = bot;
 		const random = this.questions[Math.floor(Math.random() * this.questions.length)];
 		const getQuestion = () => `Who'd rather ${random}`;
+		this.otherRounds = otherRounds;
 		this.question = getQuestion();
 	}
 
 	async start(channel: TextChannel) {
-		const signUpTime = 20;
-
 		const signUpMessage = await channel
-			.send(`A new round of "Who would rather" just started! React to this message during the next ${signUpTime} seconds with a unique emote to join.`);
+			.send(`A new round of "Who would rather" just started! React to this message during the next ${this.signUpTime} seconds with a unique emote to join.`);
 
 		if (!(signUpMessage instanceof Message)) return;
 
-		const collector = signUpMessage.createReactionCollector(this.signUpFilter, {time: signUpTime * 1000});
+		const collector = signUpMessage.createReactionCollector(this.signUpFilter, {time: this.signUpTime * 1000});
 
 		collector.on('end', collected => this.questionRound(channel, collected));
 
@@ -51,7 +55,8 @@ export default class Game {
 
 		// If the user picks an emoji someone else already used, deny that reaction and notify the user.
 		if (msg.reactions.some(existingReaction => existingReaction.users.size > 1)) {
-			msg.channel.send(user + " Your chosen emoji was already taken by someone else. Please react with a unique emoji to join.");
+			msg.channel.send(user + " Your chosen emoji was already taken by someone else. Please react with a unique emoji to join.")
+				.then(warn => deleteMessage(warn, 10000));
 			reaction.remove(user);
 			return false;
 		}
@@ -60,7 +65,8 @@ export default class Game {
 			|| msg.guild.emojis.some(emoji => emoji.id === reaction.emoji.id);
 
 		if (!botHasEmoji) {
-			msg.channel.send(user + " Your chosen emoji is not available to this bot. Please use a standard emoji or one of this server");
+			msg.channel.send(user + " Your chosen emoji is not available to this bot. Please use a standard emoji or one of this server")
+				.then(warn => deleteMessage(warn, 10000));
 			reaction.remove(user);
 			return false;
 		}
@@ -75,8 +81,6 @@ export default class Game {
 	};
 
 	async questionRound(channel: TextChannel, reactions: Collection<string, MessageReaction>) {
-		const voteTime = 20 * 1000;
-
 		if (reactions.size < 1) {
 			await channel.send("There aren't enough players for the game. Get more people here and start again!");
 			return;
@@ -92,7 +96,7 @@ export default class Game {
 			.filter(({user}) => user) // Remove entries that were removed because of duplicate
 			.sort(({user: userA}, {user: userB}) => userA.displayName.localeCompare(userB.displayName));
 
-		const question = `${this.question}? Use the emojis to cast your vote during the next 10 seconds!`;
+		const question = `${this.question}? Use the emojis to cast your vote during the next ${this.voteTime} seconds!`;
 		await channel.send(question);
 
 		const peopleList = userReactionMap.map(({emoji, user}) => `${emoji} - ${user.displayName}`);
@@ -101,17 +105,17 @@ export default class Game {
 		let voteMessage: Message;
 		if (sendResult instanceof Message) {
 			voteMessage = sendResult;
-			sendResult.delete(voteTime).catch(console.error);
 		} else { // I think this could hypothetically be hit if there is a huge list of people playing and there are two messages posted listing the participants. Rather unlikely tho.
 			voteMessage = sendResult[sendResult.length];
-			sendResult.forEach(msg => msg.delete(voteTime));
 		}
+
+		deleteMessage(sendResult, this.voteTime * 1000);
 
 		userReactionMap.map(({emoji}) => emoji).forEach(emoji => voteMessage.react(emoji));
 
 		const voteCollector = voteMessage.createReactionCollector(
 			(reaction, user) => this.voteFilter(reaction, user, userReactionMap),
-			{time: voteTime}
+			{time: this.voteTime * 1000}
 		);
 		voteCollector.on('end', collection => this.voteEndListener(collection, userReactionMap, channel));
 	}
@@ -162,5 +166,9 @@ export default class Game {
 		if (users.length > 1) userList = users.slice(0, -1).join(", ") + " and " + users.slice(-1);
 
 		channel.send(`So... ${this.question}? It's ${userList}`);
+
+		const roundIndex = this.otherRounds.indexOf(channel.id);
+		if (roundIndex > -1)
+			this.otherRounds.splice(roundIndex, 1);
 	}
 }

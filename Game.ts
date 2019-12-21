@@ -24,10 +24,11 @@ export default class Game {
 	bot: Client;
 	question: string;
 	questions = ["eat cheese", "write javascript", "be a moron", "write a non-working discord bot for the game Who'd rather"];
+
 	otherRounds: Array<Snowflake>;
 
-	signUpTime = 60;
-	voteTime = 30;
+	signUpTime = 10;
+	voteTime = 15;
 
 	constructor(bot: Client, otherRounds: Array<Snowflake>) {
 		this.bot = bot;
@@ -45,16 +46,29 @@ export default class Game {
 
 		const collector = signUpMessage.createReactionCollector(this.signUpFilter, {time: this.signUpTime * 1000});
 
+		const reactionNumbers = ["\u0030\u20E3", "\u0031\u20E3", "\u0032\u20E3", "\u0033\u20E3", "\u0034\u20E3", "\u0035\u20E3", "\u0036\u20E3", "\u0037\u20E3", "\u0038\u20E3", "\u0039\u20E3"];
+
+		for (let number of reactionNumbers) {
+			await signUpMessage.react(number);
+		}
+
 		collector.on('end', collected => this.questionRound(channel, collected));
 
 		return;
 	}
 
 	signUpFilter(reaction: MessageReaction, user: User) {
+		if (user.bot) return false;
+
 		const msg = reaction.message;
 
+		// Clear reaction if it was provided by the bot
+		reaction.users.filter((user) => user.bot).forEach(user => reaction.remove(user));
+
+		const taken = reaction.users.filter(u => !u.bot && u.id !== user.id).size > 0;
+
 		// If the user picks an emoji someone else already used, deny that reaction and notify the user.
-		if (msg.reactions.some(existingReaction => existingReaction.users.size > 1)) {
+		if (taken) {
 			msg.channel.send(user + " Your chosen emoji was already taken by someone else. Please react with a unique emoji to join.")
 				.then(warn => deleteMessage(warn, 10000));
 			reaction.remove(user);
@@ -87,7 +101,7 @@ export default class Game {
 		}
 
 		const memberFromReactions = reaction => {
-			const user = reaction.users.array()[0];
+			const user = reaction.users.filter(user => !user.bot).array()[0];
 			return channel.guild.member(user);
 		};
 

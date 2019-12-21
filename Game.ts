@@ -6,6 +6,7 @@ import {
 	Message,
 	MessageReaction,
 	ReactionEmoji,
+	RichEmbed,
 	Snowflake,
 	TextChannel,
 	User
@@ -39,8 +40,9 @@ export default class Game {
 	}
 
 	async start(channel: TextChannel) {
-		const signUpMessage = await channel
-			.send(`A new round of "Who would rather" just started! React to this message during the next ${this.signUpTime} seconds with a unique emote to join.`);
+		const embed = this.gameEmbed(channel, "Sign up!",
+			`A new round of "Who would rather" just started! React to this message during the next ${this.signUpTime} seconds with a unique emote or chose one of the provided ones to join.`);
+		const signUpMessage = await channel.send(embed);
 
 		if (!(signUpMessage instanceof Message)) return;
 
@@ -96,7 +98,8 @@ export default class Game {
 
 	async questionRound(channel: TextChannel, reactions: Collection<string, MessageReaction>) {
 		if (reactions.size < 1) {
-			await channel.send("There aren't enough players for the game. Get more people here and start again!");
+			const embed = this.gameEmbed(channel, "", "There aren't enough players for the game. Get more people here and start again!");
+			await channel.send(embed);
 			return;
 		}
 
@@ -111,7 +114,8 @@ export default class Game {
 			.sort(({user: userA}, {user: userB}) => userA.displayName.localeCompare(userB.displayName));
 
 		const question = `${this.question}? Use the emojis to cast your vote during the next ${this.voteTime} seconds!`;
-		await channel.send(question);
+		const embed = this.gameEmbed(channel, "Question", question);
+		await channel.send(embed);
 
 		const peopleList = userReactionMap.map(({emoji, user}) => `${emoji} - ${user.displayName}`);
 		const sendResult = await channel.send(peopleList);
@@ -179,10 +183,21 @@ export default class Game {
 		// https://stackoverflow.com/a/15069646/6707985
 		if (users.length > 1) userList = users.slice(0, -1).join(", ") + " and " + users.slice(-1);
 
-		channel.send(`So... ${this.question}? It's ${userList}`);
+		const embed = this.gameEmbed(channel, "Result", `So... ${this.question}? It's **${userList}**!`);
+		channel.send(embed);
 
 		const roundIndex = this.otherRounds.indexOf(channel.id);
 		if (roundIndex > -1)
 			this.otherRounds.splice(roundIndex, 1);
 	}
+
+	gameEmbed(channel: TextChannel, titleNote: string, description: string): RichEmbed {
+		const botColor = channel.guild.member(this.bot.user).displayColor;
+
+		return new RichEmbed()
+			.setColor(botColor)
+			.setTitle("Who would rather? - " + titleNote)
+			.setDescription(description);
+	}
+
 }

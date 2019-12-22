@@ -23,6 +23,11 @@ import axios from 'axios';
  / Question list.
  */
 
+interface UserReaction {
+	user: GuildMember;
+	emoji: Emoji | ReactionEmoji;
+}
+
 export default class Game {
 	bot: Client;
 	question: string;
@@ -111,10 +116,7 @@ export default class Game {
 		return true;
 	};
 
-	reactionsToUserReactionMap(channel: TextChannel, reactions: Collection<string, MessageReaction>): Array<{
-		user: GuildMember,
-		emoji: Emoji | ReactionEmoji
-	}> {
+	reactionsToUserReactionMap(channel: TextChannel, reactions: Collection<string, MessageReaction>): Array<UserReaction> {
 		const memberFromReactions = reaction => {
 			const user = reaction.users.filter(user => !user.bot).array()[0];
 			return channel.guild.member(user);
@@ -126,7 +128,7 @@ export default class Game {
 			.sort(({user: userA}, {user: userB}) => userA.displayName.localeCompare(userB.displayName));
 	}
 
-	async questionRound(channel: TextChannel, userReactionMap: Array<{ emoji: Emoji | ReactionEmoji, user: GuildMember }>) {
+	async questionRound(channel: TextChannel, userReactionMap: Array<UserReaction>) {
 		const minPlayers = 1;
 
 		const notEnoughPlayers = async () => {
@@ -173,7 +175,7 @@ export default class Game {
 
 	voteFilter(reaction: MessageReaction,
 	           user: User,
-	           userReactionMap: Array<{ emoji: Emoji | ReactionEmoji, user: GuildMember }>,
+	           userReactionMap: Array<UserReaction>,
 	           collector: ReactionCollector) {
 
 		if (user.bot) return false;
@@ -210,8 +212,8 @@ export default class Game {
 	}
 
 	async voteEndListener(votings: Collection<string, MessageReaction>,
-	                userReactionMap: Array<{ emoji: Emoji | ReactionEmoji, user: GuildMember }>,
-	                channel: TextChannel) {
+	                      userReactionMap: Array<UserReaction>,
+	                      channel: TextChannel) {
 
 		const mostReactions: { max: number, emojis: Array<Emoji | ReactionEmoji> } = votings.reduce((acc, reaction) => {
 			const reactionCount = reaction.users.size;

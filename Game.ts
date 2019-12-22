@@ -119,11 +119,6 @@ export default class Game {
 			return;
 		};
 
-		if (reactions.size < minPlayers) {
-			await notEnoughPlayers();
-			return;
-		}
-
 		const memberFromReactions = reaction => {
 			const user = reaction.users.filter(user => !user.bot).array()[0];
 			return channel.guild.member(user);

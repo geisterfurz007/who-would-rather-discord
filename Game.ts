@@ -5,6 +5,7 @@ import {
 	GuildMember,
 	Message,
 	MessageReaction,
+	ReactionCollector,
 	ReactionEmoji,
 	RichEmbed,
 	Snowflake,
@@ -29,6 +30,7 @@ export default class Game {
 
 	signUpTime = 10;
 	voteTime = 15;
+	votingClosed = false;
 
 	constructor(bot: Client, otherRounds: Array<Snowflake>) {
 		this.bot = bot;
@@ -156,7 +158,7 @@ export default class Game {
 		userReactionMap.map(({emoji}) => emoji).forEach(emoji => voteMessage.react(emoji));
 
 		const voteCollector = voteMessage.createReactionCollector(
-			(reaction, user) => this.voteFilter(reaction, user, userReactionMap),
+			(reaction, user) => this.voteFilter(reaction, user, userReactionMap, voteCollector),
 			{time: this.voteTime * 1000}
 		);
 
@@ -167,7 +169,9 @@ export default class Game {
 
 	voteFilter(reaction: MessageReaction,
 	           user: User,
-	           userReactionMap: Array<{ emoji: Emoji | ReactionEmoji, user: GuildMember }>) {
+	           userReactionMap: Array<{ emoji: Emoji | ReactionEmoji, user: GuildMember }>,
+	           collector: ReactionCollector) {
+
 		if (user.bot) return false;
 
 		if (userReactionMap.every(({user: u}) => u.id !== user.id)) {
@@ -182,6 +186,21 @@ export default class Game {
 			.filter(({emoji: e}) => e.id !== reaction.emoji.id || e.name !== reaction.emoji.name);
 
 		otherReactionsBySameUser.forEach(reaction => reaction.remove(user));
+
+		const participants = userReactionMap.map(({user}) => user.id);
+		const voted = new Set(
+			reaction.message.reactions
+				.map(r => r.users.array())
+				.flat()
+				.filter((u: User) => !u.bot)
+				.map((u: User) => u.id)
+		);
+
+		if (participants.length === voted.size && !this.votingClosed) {
+			this.votingClosed = true;
+			reaction.message.channel.send("Everyone voted! You got just a few seconds left to make changes until voting closes.").then(m => deleteMessage(m, 5000));
+			setTimeout(() => collector.stop("everyone voted"), 5000);
+		}
 
 		return true;
 	}

@@ -240,6 +240,7 @@ export default class Game {
 
 		if (this.currentRound !== this.rounds) {
 			this.currentRound++;
+			this.votingClosed = false;
 			channel.send("The next round is about to start! Get ready for voting.").then(m => deleteMessage(m, 5000));
 			setTimeout(() => this.questionRound(channel, userReactionMap), 5000);
 			return;

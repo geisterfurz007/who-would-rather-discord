@@ -52,7 +52,8 @@ export default class Game {
 			await signUpMessage.react(number);
 		}
 
-		collector.on('end', collected => this.questionRound(channel, collected));
+		const onEnd = collected => this.questionRound(channel, collected);
+		collector.on('end', collected => setTimeout(() => onEnd(collected), 2000));
 
 		return;
 	}
@@ -158,7 +159,10 @@ export default class Game {
 			(reaction, user) => this.voteFilter(reaction, user, userReactionMap),
 			{time: this.voteTime * 1000}
 		);
-		voteCollector.on('end', collection => this.voteEndListener(collection, userReactionMap, channel));
+
+		const onEnd = collection => this.voteEndListener(collection, userReactionMap, channel);
+
+		voteCollector.on('end', collected => setTimeout(() => onEnd(collected), 2000));
 	}
 
 	voteFilter(reaction: MessageReaction,

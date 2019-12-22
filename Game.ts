@@ -12,6 +12,7 @@ import {
 	User
 } from "discord.js";
 import {deleteMessage} from "./Utils";
+import axios from 'axios';
 
 /*TODO
  + Disallow duplicate votes.
@@ -24,8 +25,6 @@ import {deleteMessage} from "./Utils";
 export default class Game {
 	bot: Client;
 	question: string;
-	questions = ["eat cheese", "write javascript", "be a moron", "write a non-working discord bot for the game Who'd rather"];
-
 	otherRounds: Array<Snowflake>;
 
 	signUpTime = 10;
@@ -33,13 +32,12 @@ export default class Game {
 
 	constructor(bot: Client, otherRounds: Array<Snowflake>) {
 		this.bot = bot;
-		const random = this.questions[Math.floor(Math.random() * this.questions.length)];
-		const getQuestion = () => `Who'd rather ${random}`;
 		this.otherRounds = otherRounds;
-		this.question = getQuestion();
 	}
 
 	async start(channel: TextChannel) {
+		await this.setQuestion();
+
 		const embed = this.gameEmbed(channel, "Sign up!",
 			`A new round of "Who would rather" just started! React to this message during the next ${this.signUpTime} seconds with a unique emote or chose one of the provided ones to join.`);
 		const signUpMessage = await channel.send(embed);
@@ -57,6 +55,18 @@ export default class Game {
 		collector.on('end', collected => this.questionRound(channel, collected));
 
 		return;
+	}
+
+	async setQuestion() {
+		const entries = [];
+		const response = await axios.get('https://spreadsheets.google.com/feeds/cells/1tWHKwajakUco7WwUWuU7xAoVFfDSFDJ3BArgBf_37Kk/1/public/full?alt=json');
+
+		response.data.feed.entry.forEach(element => {
+			entries.push(element.content.$t)
+		});
+
+		const question = entries[Math.floor(Math.random() * entries.length)];
+		this.question = `Who is most likely to ${question}`;
 	}
 
 	signUpFilter(reaction: MessageReaction, user: User) {

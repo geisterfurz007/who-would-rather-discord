@@ -32,16 +32,18 @@ export default class Game {
 	voteTime = 15;
 	votingClosed = false;
 
-	constructor(bot: Client, otherRounds: Array<Snowflake>) {
+	rounds: number;
+	currentRound: number = 1;
+
+	constructor(bot: Client, otherRounds: Array<Snowflake>, rounds: number) {
 		this.bot = bot;
 		this.otherRounds = otherRounds;
+		this.rounds = rounds;
 	}
 
 	async start(channel: TextChannel) {
-		await this.setQuestion();
-
 		const embed = this.gameEmbed(channel, "Sign up!",
-			`A new round of "Who is most likely to" just started! React to this message during the next ${this.signUpTime} seconds with a unique emote or chose one of the provided ones to join.`);
+			`A new round of "Who is most likely to" just started! React to this message during the next ${this.signUpTime} seconds with a unique emote or chose one of the provided ones to join. We are playing ${this.rounds} round(s).`);
 		const signUpMessage = await channel.send(embed);
 
 		if (!(signUpMessage instanceof Message)) return;
@@ -54,7 +56,7 @@ export default class Game {
 			await signUpMessage.react(number);
 		}
 
-		const onEnd = collected => this.questionRound(channel, collected);
+		const onEnd = collected => this.questionRound(channel, this.reactionsToUserReactionMap(channel, collected));
 		collector.on('end', collected => setTimeout(() => onEnd(collected), 2000));
 
 		return;
@@ -109,7 +111,22 @@ export default class Game {
 		return true;
 	};
 
-	async questionRound(channel: TextChannel, reactions: Collection<string, MessageReaction>) {
+	reactionsToUserReactionMap(channel: TextChannel, reactions: Collection<string, MessageReaction>): Array<{
+		user: GuildMember,
+		emoji: Emoji | ReactionEmoji
+	}> {
+		const memberFromReactions = reaction => {
+			const user = reaction.users.filter(user => !user.bot).array()[0];
+			return channel.guild.member(user);
+		};
+
+		return reactions
+			.map(reaction => ({emoji: reaction.emoji, user: memberFromReactions(reaction)}))
+			.filter(({user}) => user) // Remove entries that were removed because of duplicate
+			.sort(({user: userA}, {user: userB}) => userA.displayName.localeCompare(userB.displayName));
+	}
+
+	async questionRound(channel: TextChannel, userReactionMap: Array<{ emoji: Emoji | ReactionEmoji, user: GuildMember }>) {
 		const minPlayers = 1;
 
 		const notEnoughPlayers = async () => {
@@ -119,20 +136,12 @@ export default class Game {
 			return;
 		};
 
-		const memberFromReactions = reaction => {
-			const user = reaction.users.filter(user => !user.bot).array()[0];
-			return channel.guild.member(user);
-		};
-
-		const userReactionMap = reactions
-			.map(reaction => ({emoji: reaction.emoji, user: memberFromReactions(reaction)}))
-			.filter(({user}) => user) // Remove entries that were removed because of duplicate
-			.sort(({user: userA}, {user: userB}) => userA.displayName.localeCompare(userB.displayName));
-
 		if (userReactionMap.length < minPlayers) {
 			await notEnoughPlayers();
 			return;
 		}
+
+		await this.setQuestion();
 
 		const question = `${this.question}? Use the emojis to cast your vote during the next ${this.voteTime} seconds!`;
 		const embed = this.gameEmbed(channel, "Question", question);
@@ -200,7 +209,7 @@ export default class Game {
 		return true;
 	}
 
-	voteEndListener(votings: Collection<string, MessageReaction>,
+	async voteEndListener(votings: Collection<string, MessageReaction>,
 	                userReactionMap: Array<{ emoji: Emoji | ReactionEmoji, user: GuildMember }>,
 	                channel: TextChannel) {
 
@@ -225,7 +234,15 @@ export default class Game {
 		if (users.length > 1) userList = users.slice(0, -1).join(", ") + " and " + users.slice(-1);
 
 		const embed = this.gameEmbed(channel, "Result", `So... ${this.question}? It's **${userList}**!`);
-		channel.send(embed);
+		await channel.send(embed);
+
+		if (this.currentRound !== this.rounds) {
+			this.currentRound++;
+			channel.send("The next round is about to start! Get ready for voting.").then(m => deleteMessage(m, 5000));
+			setTimeout(() => this.questionRound(channel, userReactionMap), 5000);
+			return;
+		}
+
 		this.clearChannelStatus(channel);
 	}
 
@@ -240,7 +257,7 @@ export default class Game {
 
 		return new RichEmbed()
 			.setColor(botColor)
-			.setTitle("Who is most likely to? - " + titleNote)
+			.setTitle(`Who is most likely to? - ${titleNote} - Round ${this.currentRound}/${this.rounds}`)
 			.setDescription(description);
 	}
 

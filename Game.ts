@@ -39,7 +39,7 @@ export default class Game {
 		await this.setQuestion();
 
 		const embed = this.gameEmbed(channel, "Sign up!",
-			`A new round of "Who would rather" just started! React to this message during the next ${this.signUpTime} seconds with a unique emote or chose one of the provided ones to join.`);
+			`A new round of "Who is most likely to" just started! React to this message during the next ${this.signUpTime} seconds with a unique emote or chose one of the provided ones to join.`);
 		const signUpMessage = await channel.send(embed);
 
 		if (!(signUpMessage instanceof Message)) return;
@@ -205,7 +205,7 @@ export default class Game {
 		).map(({user}) => user).map(user => user.displayName);
 
 		let userList: string;
-		if (users.length === 0) userList = "noone? That's weird... Shouldn't have happened. Probably never will actually.";
+		if (users.length === 0) userList = "noone? You need to vote people!";
 		if (users.length === 1) userList = users[0];
 		// https://stackoverflow.com/a/15069646/6707985
 		if (users.length > 1) userList = users.slice(0, -1).join(", ") + " and " + users.slice(-1);
@@ -226,7 +226,7 @@ export default class Game {
 
 		return new RichEmbed()
 			.setColor(botColor)
-			.setTitle("Who would rather? - " + titleNote)
+			.setTitle("Who is most likely to? - " + titleNote)
 			.setDescription(description);
 	}
 

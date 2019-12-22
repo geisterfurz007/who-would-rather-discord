@@ -107,9 +107,17 @@ export default class Game {
 	};
 
 	async questionRound(channel: TextChannel, reactions: Collection<string, MessageReaction>) {
-		if (reactions.size < 1) {
-			const embed = this.gameEmbed(channel, "", "There aren't enough players for the game. Get more people here and start again!");
+		const minPlayers = 1;
+
+		const notEnoughPlayers = async () => {
+			const embed = this.gameEmbed(channel, "Issue", "There aren't enough players for the game. Get more people here and start again!");
 			await channel.send(embed);
+			this.clearChannelStatus(channel);
+			return;
+		};
+
+		if (reactions.size < minPlayers) {
+			await notEnoughPlayers();
 			return;
 		}
 
@@ -122,6 +130,11 @@ export default class Game {
 			.map(reaction => ({emoji: reaction.emoji, user: memberFromReactions(reaction)}))
 			.filter(({user}) => user) // Remove entries that were removed because of duplicate
 			.sort(({user: userA}, {user: userB}) => userA.displayName.localeCompare(userB.displayName));
+
+		if (userReactionMap.length < minPlayers) {
+			await notEnoughPlayers();
+			return;
+		}
 
 		const question = `${this.question}? Use the emojis to cast your vote during the next ${this.voteTime} seconds!`;
 		const embed = this.gameEmbed(channel, "Question", question);
@@ -195,7 +208,10 @@ export default class Game {
 
 		const embed = this.gameEmbed(channel, "Result", `So... ${this.question}? It's **${userList}**!`);
 		channel.send(embed);
+		this.clearChannelStatus(channel);
+	}
 
+	clearChannelStatus(channel: TextChannel) {
 		const roundIndex = this.otherRounds.indexOf(channel.id);
 		if (roundIndex > -1)
 			this.otherRounds.splice(roundIndex, 1);

@@ -14,6 +14,7 @@ import {
 } from "discord.js";
 import {deleteMessage} from "./Utils";
 import axios from 'axios';
+import { timingSafeEqual } from "crypto";
 
 /*TODO
  + Disallow duplicate votes.
@@ -33,23 +34,37 @@ export default class Game {
 	question: string;
 	otherRounds: Array<Snowflake>;
 
+	maxRounds = 20;
+
 	signUpTime = 10;
 	voteTime = 15;
+	roundPauseTime = 30;
 	votingClosed = false;
 
 	rounds: number;
 	currentRound: number = 1;
 
-	constructor(bot: Client, otherRounds: Array<Snowflake>, rounds: number) {
+	channel: TextChannel;
+
+	constructor(bot: Client, channel: TextChannel, otherRounds: Array<Snowflake>, rounds: number, roundPauseTime: number) {
 		this.bot = bot;
 		this.otherRounds = otherRounds;
+
 		this.rounds = rounds;
+	
+		if (this.rounds > this.maxRounds) {
+			this.rounds = this.maxRounds;
+			channel.send(`Too many rounds at once! The amount of rounds was set to the maximum of ${this.maxRounds}.`);
+		}
+		
+		this.roundPauseTime = roundPauseTime;
+		this.channel = channel;
 	}
 
-	async start(channel: TextChannel) {
-		const embed = this.gameEmbed(channel, "Sign up!",
+	async start() {
+		const embed = this.gameEmbed(this.channel, "Sign up!",
 			`A new round of "Who is most likely to" just started! React to this message during the next ${this.signUpTime} seconds with a unique emote or chose one of the provided ones to join. We are playing ${this.rounds} round(s).`);
-		const signUpMessage = await channel.send(embed);
+		const signUpMessage = await this.channel.send(embed);
 
 		if (!(signUpMessage instanceof Message)) return;
 
@@ -61,7 +76,7 @@ export default class Game {
 			await signUpMessage.react(number);
 		}
 
-		const onEnd = collected => this.questionRound(channel, this.reactionsToUserReactionMap(channel, collected));
+		const onEnd = collected => this.questionRound(this.channel, this.reactionsToUserReactionMap(this.channel, collected));
 		collector.on('end', collected => setTimeout(() => onEnd(collected), 2000));
 
 		return;
@@ -241,8 +256,8 @@ export default class Game {
 		if (this.currentRound !== this.rounds) {
 			this.currentRound++;
 			this.votingClosed = false;
-			channel.send("The next round is about to start! Get ready for voting.").then(m => deleteMessage(m, 5000));
-			setTimeout(() => this.questionRound(channel, userReactionMap), 5000);
+			channel.send(`The next round starts in ${this.roundPauseTime} seconds! Get ready for voting.`).then(m => deleteMessage(m, this.roundPauseTime * 1000));
+			setTimeout(() => this.questionRound(channel, userReactionMap), this.roundPauseTime * 1000);
 			return;
 		}
 

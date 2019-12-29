@@ -145,7 +145,7 @@ export default class Game {
 
 		await this.setQuestion();
 
-		const question = `${this.question}? Use the emojis to cast your vote during the next ${this.voteTime} seconds!`;
+		const question = `${this.question}?\n*Use the emojis to cast your vote during the next ${this.voteTime} seconds!*`;
 		const embed = this.gameEmbed(channel, "Question", question);
 		await channel.send(embed);
 
